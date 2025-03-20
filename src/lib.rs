@@ -65,6 +65,13 @@ enum TemplateToken {
     Include(String),          // Включение {% include "header.html" %} — звёздный модуль!
 }
 
+// Элементы стека — для циклов и условий!
+#[derive(Debug)]
+enum StackItem {
+    ForLoop(String, String, usize), // Для {% for %} — (item_name, list_name, start_pos)
+    IfCond(String, usize),          // Для {% if %} — (condition, start_pos)
+}
+
 // Главный рендер — наш звездолёт!
 pub struct YuaiRender {
     format: RenderFormat,       // Какой формат выбрали?
@@ -117,7 +124,7 @@ impl YuaiRender {
                 if let Some(rows) = &data {
                     if rows.is_empty() { return Ok(RenderOutput::Rendered("".to_string())); }
                     let first_row = &rows[0];
-                    output.push_str(&first_row.keys().collect::<Vec<_>>().join(","));
+                    output.push_str(&first_row.keys().map(|k| k.as_str()).collect::<Vec<_>>().join(","));
                     output.push('\n');
                     for row in rows {
                         let values: Vec<String> = row.values().map(|v| format!("\"{}\"", v.replace("\"", "\"\""))).collect();
@@ -180,16 +187,16 @@ impl YuaiRender {
                     }
                 }
                 TemplateToken::ForStart(item_name, list_name) => {
-                    stack.push((item_name, list_name, output.len())); // Запоминаем начало цикла!
+                    stack.push(StackItem::ForLoop(item_name, list_name, output.len())); // Запоминаем начало цикла!
                 }
                 TemplateToken::ForEnd => {
-                    if let Some((item_name, list_name, start_pos)) = stack.pop() {
-                        let loop_content = &output[start_pos..];
+                    if let Some(StackItem::ForLoop(item_name, list_name, start_pos)) = stack.pop() {
+                        let loop_content = output[start_pos..].to_string(); // Копируем в String
                         output.truncate(start_pos);
                         for row in &data {
                             if let Some(list) = row.get(&list_name) {
                                 for item in list.split(',') {
-                                    let mut temp = loop_content.to_string();
+                                    let mut temp = loop_content.clone();
                                     temp = temp.replace(&format!("{{ {} }}", item_name), item);
                                     output.push_str(&temp); // Повторяем для каждого элемента!
                                 }
@@ -198,27 +205,27 @@ impl YuaiRender {
                     }
                 }
                 TemplateToken::IfStart(condition) => {
-                    stack.push((condition, output.len())); // Запоминаем начало условия!
+                    stack.push(StackItem::IfCond(condition, output.len())); // Запоминаем начало условия!
                 }
                 TemplateToken::Else => {
-                    if let Some((condition, start_pos)) = stack.last_mut() {
-                        let if_content = &output[*start_pos..];
+                    if let Some(StackItem::IfCond(condition, start_pos)) = stack.last_mut() {
+                        let if_content = output[*start_pos..].to_string(); // Копируем в String
                         output.truncate(*start_pos);
                         if let Some(row) = data.first() {
                             if row.get(condition).map(|v| v == "true").unwrap_or(false) {
-                                output.push_str(if_content); // Условие истинно!
+                                output.push_str(&if_content); // Условие истинно!
                             }
                         }
                         *start_pos = output.len(); // Перемещаем для else!
                     }
                 }
                 TemplateToken::IfEnd => {
-                    if let Some((condition, start_pos)) = stack.pop() {
-                        let else_content = &output[start_pos..];
+                    if let Some(StackItem::IfCond(condition, start_pos)) = stack.pop() {
+                        let else_content = output[start_pos..].to_string(); // Копируем в String
                         output.truncate(start_pos);
                         if let Some(row) = data.first() {
                             if !row.get(&condition).map(|v| v == "true").unwrap_or(false) {
-                                output.push_str(else_content); // Условие ложно — берём else!
+                                output.push_str(&else_content); // Условие ложно — берём else!
                             }
                         }
                     }
@@ -234,7 +241,6 @@ impl YuaiRender {
                         .map_err(|e| RenderError::FileError(format!("Не могу включить '{}': {}", file, e)))?;
                     let rendered_include = self.render_template(&include_content, data.clone(), included)?;
                     output.push_str(&rendered_include);
-                    // После рендера можно удалить файл из included, если не нужен глобальный контроль!
                 }
             }
         }
