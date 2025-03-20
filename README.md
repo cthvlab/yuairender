@@ -149,25 +149,47 @@
 
 4. **Клиентский JS для гидрации (`hydrate.js`)**:
    ```javascript
-   // Хватаем данные из космоса
-   const initialData = window.__INITIAL_DATA__[0] || {};
-
-   // Оживляем страницу!
-   const app = document.getElementById("app");
-   app.querySelectorAll(".hobby-item").forEach((item, index) => {
-       item.addEventListener("click", () => {
-           alert(`Космическое хобби: ${initialData.hobbies.split(",")[index]}!`);
-       });
-   });
-
-   const footer = app.querySelector(".status");
-   if (initialData.active === "true") {
-       footer.style.color = "green";
-       footer.textContent += " (Кликни для привета!)";
-       footer.addEventListener("click", () => alert(`Привет от ${initialData.name}!`));
-   } else {
-       footer.style.color = "gray";
-   }
+    // Гидратор — оживляем звёздный корабль!
+    (function () {
+        console.log("Йо-хо! Гидратация началась, поднимаем паруса!");
+    
+        // Берём добычу из сундука данных, что оставил сервер
+        const initialData = window.__INITIAL_DATA__;
+        if (!initialData || initialData.length === 0) {
+            console.log("Сундук пуст, капитан! Нет данных для гидратации.");
+            document.getElementById("app").innerHTML = "<p>Корабль затерялся в космосе!</p>";
+            return;
+        }
+    
+        // Первый корабль — наш флагман!
+        const shipData = initialData[0]; // Берём первую запись для простоты
+        const shipName = shipData["s.name"] || "Безымянный фрегат";
+        const pirates = initialData.map(row => row["p.name"]); // Все пираты — наши сокровища!
+        const isActive = pirates.length > 0; // Если есть пираты, капитан на борту!
+    
+        // Собираем карту сокровищ для DOM
+        let html = `<h1>Корабль ${shipName}</h1>`;
+        
+        // Грузим сокровища (пиратов) в трюм
+        if (pirates.length > 0) {
+            html += pirates
+                .map(pirate => `<p>Сокровище: ${pirate}</p>`)
+                .join("");
+        } else {
+            html += "<p>Сокровищ нет, трюм пуст!</p>";
+        }
+    
+        // Проверяем, бодрствует ли капитан
+        html += isActive 
+            ? "<footer>Капитан на борту!</footer>" 
+            : "<footer>Капитан спит!</footer>";
+    
+        // Поднимаем флаг на мачте — обновляем DOM!
+        const app = document.getElementById("app");
+        app.innerHTML = html;
+    
+        console.log("Гидратация завершена, полный вперёд, йо-хо!");
+    })();
    ```
 
 ## Что у нас в арсенале?
