@@ -1,0 +1,9 @@
+<h1>Корабль {{ name }}</h1>
+{% for treasure in treasures %}
+  <p>Сокровище: {{ treasure }}</p>
+{% endfor %}
+{% if active %}
+  <footer>Капитан на борту!</footer>
+{% else %}
+  <footer>Капитан спит!</footer>
+{% endif %}
