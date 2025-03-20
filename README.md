@@ -135,16 +135,15 @@
   
 3. **Шаблон `templates/pirates.html`**:
    ```html
-    <h1>Корабль {{ name }}</h1>
-    {% for treasure in treasures %}
-      <p>Сокровище: {{ treasure }}</p>
+    <h1>Корабль {{ s.name }}</h1>
+    {% for pirate in p.name %}
+      <p>Сокровище: {{ pirate }}</p>
     {% endfor %}
-    {% if active %}
+    {% if p.name %}
       <footer>Капитан на борту!</footer>
     {% else %}
       <footer>Капитан спит!</footer>
     {% endif %}
-
    ```
 
 4. **Клиентский JS для гидрации (`hydrate.js`)**:
