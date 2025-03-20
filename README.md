@@ -34,70 +34,117 @@
 
 2. **Пример эпичного старта с гидрацией**:
    ```rust
-   use yuairender::{YuaiRender, RenderOutput};
-   use yuaidb::Database;
+    use yuaidb::Database;
+    use yuairender::{YuaiRender, RenderOutput};
+    
+    #[tokio::main]
+    async fn main() {
+        // Запускаем звездолёт базы данных — полный вперёд!
+        let db = match Database::new("data", "config.toml").await {
+            Ok(db) => {
+                println!("База данных на орбите, капитан!");
+                Some(db)
+            }
+            Err(e) => {
+                println!("Сбой в гипердвигателе базы: {}. Летим без неё, йо-хо!", e);
+                None
+            }
+        };  
 
-   #[tokio::main]
-   async fn main() -> Result<(), Box<dyn std::error::Error>> {
-       // Подключаемся к базе — нашему звёздному хранилищу!
-       let db = Database::new("data", "config.toml").await?;
-       let query = db.select("users")
-           .fields(vec!["name", "hobbies", "active"])
-           .where_eq("status", "online");
+      // Ищем добычу в звёздных архивах!
+      let data = if let Some(ref db) = db {
+          let mut query = db.select("pirates"); // Сканируем галактику за пиратами!
+          query.alias("p"); // Даём кодовое имя "p" для шпионов!
+          query.fields(vec!["p.name", "s.name", "s.speed"]); // Что у нас в сундуке?
+          query.join("ships", "s", "s.ship_id", "p.ship_id"); // Соединяем флот с экипажем!
+          query.order_by("p.name", true); // Сортируем по алфавиту, как в пиратском уставе!
+          query.limit(10); // Не больше 10 сокровищ за раз!
+  
+          match query.execute(db).await {
+              Ok(Some(rows)) => Some(rows), // Нашли сундук с данными!
+              Ok(None) => {
+                  println!("Сундук пуст, пираты спрятали добычу!");
+                  None
+              }
+              Err(e) => {
+                  println!("Космическая буря в запросе: {}. Летим без груза!", e);
+                  None
+              }
+          }
+      } else {
+          println!("Без базы — без добычи, рендерим пустой космос!");
+          None
+      };
+  
+      // Рисуем карту сокровищ в HTML!
+      let html = match YuaiRender::new("html", Some("templates/pirates.html")) {
+          Ok(html_renderer) => match html_renderer.render(data.clone()) {
+              Ok(RenderOutput::Rendered(html)) => html, // Карта готова, капитан!
+              Ok(RenderOutput::Raw(_)) => unreachable!(), // Секретный код, сюда не попадём!
+              Err(e) => {
+                  println!("Шторм в рендере HTML: {}. Кидаем заглушку!", e);
+                  "<p>Ошибка: звёзды скрыты!</p>".to_string()
+              }
+          },
+          Err(e) => {
+              println!("Картограф сбежал с шаблоном: {}. Ставим метку!", e);
+              "<p>Ошибка: карта потеряна!</p>".to_string()
+          }
+      };
+  
+      // Пакуем добычу в JSON для космических шпионов!
+      let json = match YuaiRender::new("json", None) {
+          Ok(json_renderer) => match json_renderer.render(data) {
+              Ok(RenderOutput::Rendered(json)) => json, // Данные в сундуке JSON!
+              Ok(RenderOutput::Raw(_)) => unreachable!(), // Тайный ход, не для нас!
+              Err(e) => {
+                  println!("Ошибка в упаковке JSON: {}. Пустой сундук!", e);
+                  "{}".to_string()
+              }
+          },
+          Err(e) => {
+              println!("JSON-машина сломалась: {}. Берём пустышку!", e);
+              "{}".to_string()
+          }
+      };
+  
+      // Собираем звёздный корабль HTML с добычей!
+      let response = format!(
+          r#"
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Звёздный пират</title>
+          </head>
+          <body>
+              <div id="app">{}</div>
+              <script type="text/javascript">
+                  window.__INITIAL_DATA__ = {};
+              </script>
+              <script src="/hydrate.js"></script>
+          </body>
+          </html>
+          "#,
+          html, json
+      );
 
-       // SSR: Рендерим HTML на сервере
-       let html_renderer = YuaiRender::new("html", Some("templates/user.html"))?;
-       let data = query.clone().execute(&db).await?;
-       let html = match html_renderer.render(data.clone())? {
-           RenderOutput::Rendered(html) => html,
-           _ => unreachable!(),
-       };
-
-       // JSON для гидрации: данные для клиента
-       let json_renderer = YuaiRender::new("json", None)?;
-       let json = match json_renderer.render(data)? {
-           RenderOutput::Rendered(json) => json,
-           _ => unreachable!(),
-       };
-
-       // Итоговый HTML с данными для гидрации
-       let response = format!(
-           r#"
-           <!DOCTYPE html>
-           <html>
-           <head>
-               <title>Галактический привет!</title>
-           </head>
-           <body>
-               <div id="app">{}</div>
-               <script type="text/javascript">
-                   window.__INITIAL_DATA__ = {};
-               </script>
-               <script src="/hydrate.js"></script>
-           </body>
-           </html>
-           "#,
-           html, json
-       );
-
-       println!("Космический HTML с гидрацией:\n{}", response);
-       Ok(())
-   }
+      // Показываем карту галактической добычи!
+      println!("Готовый HTML с гидрацией:\n{}", response);
+    }
    ```
-
-3. **Шаблон `templates/user.html`**:
+  
+3. **Шаблон `templates/pirates.html`**:
    ```html
-   <h1>Привет, {{ name }}!</h1>
-   <ul>
-   {% for hobby in hobbies %}
-     <li class="hobby-item" data-hobby="{{ hobby }}">Любимое дело: {{ hobby }}</li>
-   {% endfor %}
-   </ul>
-   {% if active %}
-     <footer class="status">Онлайн и сияет!</footer>
-   {% else %}
-     <footer class="status">Пока в спящем режиме!</footer>
-   {% endif %}
+    <h1>Корабль {{ name }}</h1>
+    {% for treasure in treasures %}
+      <p>Сокровище: {{ treasure }}</p>
+    {% endfor %}
+    {% if active %}
+      <footer>Капитан на борту!</footer>
+    {% else %}
+      <footer>Капитан спит!</footer>
+    {% endif %}
+
    ```
 
 4. **Клиентский JS для гидрации (`hydrate.js`)**:
