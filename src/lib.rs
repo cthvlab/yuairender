@@ -1,26 +1,20 @@
 use std::collections::{HashMap, HashSet};
-use std::fs::read_to_string;
 use std::str::FromStr;
+use thiserror::Error; // Новый помощник для ошибок — звёздный шторм под контролем!
+use serde_json; // Для JSON — машинные орбиты!
+use regex; // Для парсинга шаблонов — звёздный сканер!
+use base64; // Для Protobuf — гиперскорость в байтах!
 
-// Ошибки рендера — если что-то пошло не по звёздам!
-#[derive(Debug)]
+// Ошибки рендера — штормы в космосе!
+#[derive(Debug, Error)]
 pub enum RenderError {
-    UnknownFormat(String),      // Формат не из нашей галактики!
-    FileError(String),          // Не нашли файл в космосе!
+    #[error("Ой-ой! Формат '{0}' не из нашей вселенной!")]
+    UnknownFormat(String), // Формат не из нашей галактики!
+    #[error("Космическая буря! Ошибка с файлом: {0}")]
+    FileError(#[from] std::io::Error), // Не нашли файл в космосе — теперь от std::io::Error!
+    #[error("Телепорт сломался! Ошибка сериализации: {0}")]
     SerializationError(String), // Ошибка при упаковке данных!
 }
-
-impl std::fmt::Display for RenderError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RenderError::UnknownFormat(fmt) => write!(f, "Ой-ой! Формат '{}' не из нашей вселенной!", fmt),
-            RenderError::FileError(msg) => write!(f, "Космическая буря! Ошибка с файлом: {}", msg),
-            RenderError::SerializationError(msg) => write!(f, "Телепорт сломался! Ошибка: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for RenderError {}
 
 // Форматы рендера — выбираем курс!
 #[derive(Debug, Clone, PartialEq)]
@@ -81,8 +75,8 @@ pub struct YuaiRender {
 impl YuaiRender {
     // Новый рендер — готовим звездолёт к полёту!
     pub fn new(format: &str, template: Option<&str>) -> Result<Self, RenderError> {
-        let render_format = RenderFormat::from_str(format)?;
-        let template_path = template.map(|t| t.to_string());
+        let render_format = RenderFormat::from_str(format)?; // Парсим формат или шторм!
+        let template_path = template.map(|t| t.to_string()); // Путь к шаблону — если есть!
         Ok(YuaiRender {
             format: render_format,
             template: template_path,
@@ -93,7 +87,7 @@ impl YuaiRender {
     pub fn render(&self, data: Option<Vec<HashMap<String, String>>>) -> Result<RenderOutput, RenderError> {
         match self.format {
             RenderFormat::Html => {
-                let template_content = self.load_template("templates/default.html")?;
+                let template_content = self.load_template("templates/default.html")?; // Загружаем карту!
                 let rendered = self.render_template(&template_content, data.unwrap_or_default(), &mut HashSet::new())?;
                 Ok(RenderOutput::Rendered(rendered))
             }
@@ -150,7 +144,7 @@ impl YuaiRender {
                 Ok(RenderOutput::Rendered(output))
             }
             RenderFormat::Markdown => {
-                let template_content = self.load_template("templates/default.md")?;
+                let template_content = self.load_template("templates/default.md")?; // Загружаем карту!
                 let rendered = self.render_template(&template_content, data.unwrap_or_default(), &mut HashSet::new())?;
                 Ok(RenderOutput::Rendered(rendered))
             }
@@ -166,13 +160,13 @@ impl YuaiRender {
     // Загружаем шаблон — берём карту из звёздного архива!
     fn load_template(&self, default_path: &str) -> Result<String, RenderError> {
         let path = self.template.as_ref().map(|s| s.as_str()).unwrap_or(default_path);
-        read_to_string(path)
-            .map_err(|e| RenderError::FileError(format!("Не могу найти '{}': {}", path, e)))
+        std::fs::read_to_string(path)?; // Читаем или шторм!
+        Ok(std::fs::read_to_string(path)?) // Возвращаем содержимое!
     }
 
     // Рендерим шаблон — превращаем карту в звёздный путь с защитой от зацикливания!
     fn render_template(&self, template: &str, data: Vec<HashMap<String, String>>, included: &mut HashSet<String>) -> Result<String, RenderError> {
-        let tokens = self.parse_template(template);
+        let tokens = self.parse_template(template); // Парсим карту!
         let mut output = String::new();
         let mut stack = Vec::new(); // Стек для циклов и условий!
 
@@ -237,21 +231,20 @@ impl YuaiRender {
                         continue; // Пропускаем, чтобы избежать бесконечной рекурсии!
                     }
                     included.insert(file.clone()); // Добавляем в список включённых!
-                    let include_content = read_to_string(&file)
-                        .map_err(|e| RenderError::FileError(format!("Не могу включить '{}': {}", file, e)))?;
+                    let include_content = std::fs::read_to_string(&file)?; // Читаем модуль или шторм!
                     let rendered_include = self.render_template(&include_content, data.clone(), included)?;
                     output.push_str(&rendered_include);
                 }
             }
         }
-        Ok(output)
+        Ok(output) // Карта готова — полный вперёд!
     }
 
     // Парсим шаблон — разбиваем карту на звёздные куски!
     fn parse_template(&self, template: &str) -> Vec<TemplateToken> {
         let mut tokens = Vec::new();
         let mut remaining = template;
-        let re = regex::Regex::new(r"(\{\{.*?\}\}|\{%.*?%\})").unwrap();
+        let re = regex::Regex::new(r"(\{\{.*?\}\}|\{%.*?%\})").unwrap(); // Сканер для токенов!
 
         while let Some(mat) = re.find(remaining) {
             let before = &remaining[..mat.start()];
@@ -292,7 +285,7 @@ impl YuaiRender {
         if !remaining.is_empty() {
             tokens.push(TemplateToken::Text(remaining.to_string()));
         }
-        tokens
+        tokens // Куски карты готовы — в путь!
     }
 }
 
