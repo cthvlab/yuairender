@@ -4,8 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
+yuaidb = { path = "../yuaidb" }  # Путь к yuaidb
+tokio = { version = "1.0", features = ["full"] }  # Для асинхронности
+thiserror = "1.0"
 serde_json = "1.0"
-bincode = "1.3"
-base64 = "0.13"
 regex = "1.5"
+base64 = "0.13"
+bincode = "1.3"  # Для Protobuf (вместо настоящего Protobuf, как в твоём коде)
+
+[[bin]]
+name = "yuairender"
+path = "src/main.rs"
